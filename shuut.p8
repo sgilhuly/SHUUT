@@ -16,65 +16,65 @@ paused = false
 rock_counter = 0
 
 function _init()
-	bullet = {}
-	rock = {}
-	smoke = {}
+ bullet = {}
+ rock = {}
+ smoke = {}
  part = {}
 end
 
 function _update()
-	if (btnp(5)) paused = not paused
-	if (paused and not btnp(4)) return
+ if (btnp(5)) paused = not paused
+ if (paused and not btnp(4)) return
 
  ps = 4
  if (btn(4)) ps = 2
-	if (btn(0)) px -= ps
-	if (btn(1)) px += ps
-	if (btn(2)) py -= ps
-	if (btn(3)) py += ps
+ if (btn(0)) px -= ps
+ if (btn(1)) px += ps
+ if (btn(2)) py -= ps
+ if (btn(3)) py += ps
  px = clamp(px,0,120)
  py = clamp(py,0,ymax-10)
-	
-	foreach(bullet, move_bullet)
-	foreach(rock, move_rock)
-	foreach(smoke, move_smoke)
-	foreach(part, move_part)
-	
-	for b in all(bullet) do
-	 for r in all(rock) do
-	  -- aabb(b, r)
+
+ foreach(bullet, move_bullet)
+ foreach(rock, move_rock)
+ foreach(smoke, move_smoke)
+ foreach(part, move_part)
+
+ for b in all(bullet) do
+  for r in all(rock) do
+   -- aabb(b, r)
    if (sphere_col(b,r)) then
     b.hp-=1
     r.hp-=1
    end
    if (b.hp <= 0) kill_bullet(b)
    if (r.hp <= 0) kill_rock(r)
-	 end
-	end
-	
-	if (cooldown > 0) then
+  end
+ end
+
+ if (cooldown > 0) then
   cooldown -= 1
-	elseif (btn(4)) then
-		make_bullet(px, py)
-		make_bullet(px+7, py)
-		cooldown = max_cooldown
-	end
+ elseif (btn(4)) then
+  make_bullet(px, py)
+  make_bullet(px+7, py)
+  cooldown = max_cooldown
+ end
  if (not btn(4) and pcharge<10) pcharge += .02
-	
+
  rock_counter+=1+rnd()
-	if (rock_counter>20) then
+ if (rock_counter>20) then
   make_rock()
   rock_counter=0
  end
 end
 
 function _draw()
-	cls(1)
-	foreach(rock, draw_rock)
-	foreach(smoke, draw_smoke)
-	foreach(part, draw_part)
-	foreach(bullet, draw_bullet)
-	draw_player()
+ cls(1)
+ foreach(rock, draw_rock)
+ foreach(smoke, draw_smoke)
+ foreach(part, draw_part)
+ foreach(bullet, draw_bullet)
+ draw_player()
 
  -- draw ui
  -- ui is 17 pixels tall
@@ -116,37 +116,37 @@ end
 bullets = {}
 
 function draw_player()
-	spr(1, px, py)
-	
-	-- draw engine lights
-	color(14)
-	if (time()%0.4<0.2) then
-		line(px+1, py+9, px+1, py+9)
-		line(px+6, py+9, px+6, py+9)
-		color(7)
-	end
-	line(px+1, py+8, px+1, py+8)
-	line(px+6, py+8, px+6, py+8)
+ spr(1, px, py)
+
+ -- draw engine lights
+ color(14)
+ if (time()%0.4<0.2) then
+  line(px+1, py+9, px+1, py+9)
+  line(px+6, py+9, px+6, py+9)
+  color(7)
+ end
+ line(px+1, py+8, px+1, py+8)
+ line(px+6, py+8, px+6, py+8)
 end
 
 function draw_bullet(b)
-	--pset(b.x, b.y, 11)
-	line(b.x, b.y, b.x, b.y+b.h-1, 14)
-	--line(b.x, b.y+4, b.x, b.y+7, 3)
+ --pset(b.x, b.y, 11)
+ line(b.x, b.y, b.x, b.y+b.h-1, 14)
+ --line(b.x, b.y+4, b.x, b.y+7, 3)
 end
 
 function move_bullet(b)
-	b.y -= 4
-	
-	for y=5,7,2 do
-		make_smoke(b.x, b.y+y, 2, 4)
-	end
-	
-	if (b.y < -4) del(bullet, b)
+ b.y -= 4
+
+ for y=5,7,2 do
+  make_smoke(b.x, b.y+y, 2, 4)
+ end
+
+ if (b.y < -4) del(bullet, b)
 end
 
 function draw_smoke(s)
-	pset(s.x, s.y, s.c)
+ pset(s.x, s.y, s.c)
 end
 
 function draw_part(p)
@@ -156,8 +156,8 @@ end
 function move_smoke(s)
  s.x+=s.dx
  s.y+=s.dy
-	s.t -= 1
-	if (s.t <= 0) del(smoke, s)
+ s.t -= 1
+ if (s.t <= 0) del(smoke, s)
 end
 
 function move_part(p)
@@ -167,13 +167,13 @@ function move_part(p)
 end
 
 function move_rock(r)
-	r.y += r.dy
-	if (r.y > ymax) del(rock, r)
+ r.y += r.dy
+ if (r.y > ymax) del(rock, r)
 end
 
 function draw_rock(r)
-	spr(14, r.x, r.y,2,2)
-	-- map(0,0,r.x,r.y,2,2)
+ spr(14, r.x, r.y,2,2)
+ -- map(0,0,r.x,r.y,2,2)
 end
 
 function kill_bullet(b)
@@ -189,32 +189,32 @@ end
 -- guf
 
 function make_bullet(x,y)
-	local b = {
-		x=x, y=y, w=1, h=6,
+ local b = {
+  x=x, y=y, w=1, h=6,
   hp=1, xo=0, yo=0, r=0.5
-	}
-	add(bullet, b)
+ }
+ add(bullet, b)
 end
 
 function make_rock()
  local x=rnd(128-16)
-	local y=-20
-	local dy=rnd(.5)+.5
-	local r = {
-		x=x, y=y, dy=dy, w=16, h=16,
-		hp=4, xo=8, yo=8, r=8
-	}
-	add(rock, r)
+ local y=-20
+ local dy=rnd(.5)+.5
+ local r = {
+  x=x, y=y, dy=dy, w=16, h=16,
+  hp=4, xo=8, yo=8, r=8
+ }
+ add(rock, r)
 end
 
 function make_smoke(x,y,c,t,dx,dy)
-	local s = {
-	 -- coords, colour, time
-		x=x, y=y, c=c, t=t,
+ local s = {
+  -- coords, colour, time
+  x=x, y=y, c=c, t=t,
   -- speed (optional)
   dx=(dx or 0), dy=(dy or 0)
-	}
-	add(smoke, s)
+ }
+ add(smoke, s)
 end
 
 function make_particle(x,y,f,df,t)
@@ -229,20 +229,20 @@ end
 
 function aabb(a, b)
  if (not a or not b) return
- 
-	if (a.x<b.x+b.w and a.x+a.w>b.x) then
-		if (a.y<b.y+b.h and a.y+a.h>b.y) then
-			-- todo: dumb
-			-- a is bullet, b is rock
+
+ if (a.x<b.x+b.w and a.x+a.w>b.x) then
+  if (a.y<b.y+b.h and a.y+a.h>b.y) then
+   -- todo: dumb
+   -- a is bullet, b is rock
    a.hp-=1
-			b.hp-=1
-		end
-	end
+   b.hp-=1
+  end
+ end
 end
 
 function sphere_col(a, b)
  if (not a or not b) return
- 
+
  local dx=a.x+a.xo-b.x-b.xo
  local dy=a.y+a.yo-b.y-b.yo
  local d=dx*dx+dy*dy
