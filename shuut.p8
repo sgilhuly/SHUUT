@@ -38,7 +38,7 @@ function _update()
 
  if (p.cooldown>0) then
   p.cooldown-=1
- elseif (btn(4)) then
+ elseif (btn(4) and p.hp>0) then
   make_bullet(p.x, p.y)
   make_bullet(p.x+7, p.y)
   p.cooldown=max_cooldown
@@ -56,10 +56,21 @@ end
 
 function _draw()
  cls(1)
+
+ -- split into three layers
+ local object_low={}
+ local object_mid={}
+ local object_high={}
  for a in all(object) do
-  a:draw()
+  if a.layer<0 then add(object_low,a)
+  elseif a.layer==0 then add(object_mid,a)
+  else add(object_high,a)
+  end
  end
- draw_player(p)
+
+ for a in all(object_low) do a:draw() end
+ for a in all(object_mid) do a:draw() end
+ for a in all(object_high) do a:draw() end
 
  -- draw ui
  -- ui is 17 pixels tall
@@ -99,16 +110,22 @@ function _draw()
 end
 
 function check_collisions()
+ -- filter to objects with radius
+ local col={}
+ for a in all(object) do
+  if (a.r>0) add(col,a)
+ end
+
  -- objects that ran out of hp in the check
  -- instead of calling del or kill in loop
  local to_kill={}
 
  -- TODO: more efficient?
- for i=1,#object do
-  for j=i+1,#object do
-   local a=object[i]
-   local b=object[j]
-   if (collides(a) and collides(b) and (a.c_flag&b.c_hits!=0)) then
+ for i=1,#col do
+  for j=i+1,#col do
+   local a=col[i]
+   local b=col[j]
+   if (hits(a,b) and hits(b,a) and a.hp>0 and b.hp>0) then
     if (sphere_col(a,b)) then
      a.hp-=b.dmg
      b.hp-=a.dmg
@@ -125,9 +142,8 @@ function check_collisions()
  end
 end
 
-function collides(a)
- -- note: 0 evaluates to true!
- return (a.hp>0 and a.c_flag!=0)
+function hits(a,b)
+ return a.c_flag&b.c_hits!=0
 end
 
 -->8
@@ -185,7 +201,9 @@ function make_object(f,x,y,dx,dy)
   -- speed
   dx=dx or 0, dy=dy or 0,
   -- collision offset, radius
-  xo=0, yo=0, r=0,
+  -- offset defaults to middle of size 1 sprite
+  -- objects with r=0 don't collide
+  xo=4, yo=4, r=0,
   -- health, damage
   hp=1, dmg=1,
   -- collision flag, flags to hit
@@ -196,6 +214,9 @@ function make_object(f,x,y,dx,dy)
   draw=draw_object,
   -- note: kill function doesn't call del()
   kill=pass,
+  -- object layer, <0 drawn below, >0 drawn above
+  -- TODO: does this need to be more granular?
+  layer=0,
   -- optional:
   -- t: lifetime in frames
   -- df: frame speed (TODO: better anim code)
@@ -257,8 +278,6 @@ specs={
  [1]={
   hp=10,
   dmg=2,
-  xo=4,
-  yo=4,
   r=3,
   gold=0,
   charge=0,
@@ -266,16 +285,20 @@ specs={
   c_flag=0x1,
   c_hits=0x6,
   move=pass,
-  draw=pass,  -- drawn at end
+  draw=draw_player,
+  layer=1,
  },
  -- bullet star
  [2]={
   df=0.34,
   t=6,
+  layer=1,
  },
  -- bullet
  [6]={
   dy=-4,
+  xo=0,
+  yo=0,
   r=0.5,
   c_flag=0x1,
   c_hits=0x2,
@@ -285,12 +308,11 @@ specs={
  -- bullet smoke
  [7]={
   t=4,
+  layer=-1,
  },
  -- coin
  [8]={
-  xo=4,
-  yo=4,
-  r=2,
+  r=3,
   dmg=0,
   c_flag=0x4,
   c_hits=0x1,
