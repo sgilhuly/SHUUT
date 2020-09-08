@@ -3,64 +3,50 @@ version 29
 __lua__
 -- asdf
 
-px = 30
-py = 30
-ps = 2
-pcharge = 0.25  -- min 0.25 to line up ui meter
-php = 10
-ymax = 128-17
+is_debug=true
 
-cooldown = 0
-max_cooldown = 10
-paused = false
-rock_counter = 0
+ymax=128-17
+max_cooldown=10
+
+paused=false
+rock_counter=0
 
 function _init()
- bullet = {}
- rock = {}
- smoke = {}
- part = {}
+ object={}
+ -- player singleton
+ p=make_object(1,30,30)
 end
 
 function _update()
- if (btnp(5)) paused = not paused
+ if (is_debug and btnp(5)) paused=not paused
  if (paused and not btnp(4)) return
 
- ps = 4
- if (btn(4)) ps = 2
- if (btn(0)) px -= ps
- if (btn(1)) px += ps
- if (btn(2)) py -= ps
- if (btn(3)) py += ps
- px = clamp(px,0,120)
- py = clamp(py,0,ymax-10)
+ local ps=2
+ if (not btn(4)) ps*=2
+ if (btn(0)) p.x-=ps
+ if (btn(1)) p.x+=ps
+ if (btn(2)) p.y-=ps
+ if (btn(3)) p.y+=ps
+ p.x=clamp(p.x,0,120)
+ p.y=clamp(p.y,0,ymax-10)
 
- foreach(bullet, move_bullet)
- foreach(rock, move_rock)
- foreach(smoke, move_smoke)
- foreach(part, move_part)
-
- for b in all(bullet) do
-  for r in all(rock) do
-   -- aabb(b, r)
-   if (sphere_col(b,r)) then
-    b.hp-=1
-    r.hp-=1
-   end
-   if (b.hp <= 0) kill_bullet(b)
-   if (r.hp <= 0) kill_rock(r)
-  end
+ for a in all(object) do
+  a:move()
  end
 
- if (cooldown > 0) then
-  cooldown -= 1
+ check_collisions()
+
+ if (p.cooldown>0) then
+  p.cooldown-=1
  elseif (btn(4)) then
-  make_bullet(px, py)
-  make_bullet(px+7, py)
-  cooldown = max_cooldown
+  make_bullet(p.x, p.y)
+  make_bullet(p.x+7, p.y)
+  p.cooldown=max_cooldown
  end
- if (not btn(4) and pcharge<10) pcharge += .02
+ if (not btn(4) and p.charge<10) p.charge+=.02
 
+ -- add 1-2 to counter
+ -- to approximate normal distribution
  rock_counter+=1+rnd()
  if (rock_counter>20) then
   make_rock()
@@ -70,11 +56,10 @@ end
 
 function _draw()
  cls(1)
- foreach(rock, draw_rock)
- foreach(smoke, draw_smoke)
- foreach(part, draw_part)
- foreach(bullet, draw_bullet)
- draw_player()
+ for a in all(object) do
+  a:draw()
+ end
+ draw_player(p)
 
  -- draw ui
  -- ui is 17 pixels tall
@@ -95,135 +80,216 @@ function _draw()
 
  -- hud contents
  spr(5,17,114)
- print(":0000",22,114,10)
+ print(":",22,114,10)
+ local s=tostr(p.gold)
+ print(s,42-4*#s,114,10)
+ print(tostr(stat(1)),18,120,3)
  print("h:",49,114,11)
  print("e:",49,120,12)
 
  -- meters
  -- block fill pattern
  fillp(0x8888)
- rectfill(56,114,56+php*4,118,11)
+ rectfill(56,114,56+p.hp*4,118,11)
  color(12)
- if (pcharge>=10) color(7)
- rectfill(56,120,55+min(pcharge,10)*4,124)
+ if (p.charge>=10) color(7)
+ rectfill(56,120,55+clamp(p.charge,.25,10)*4,124)
  fillp()
-
 end
+
+function check_collisions()
+ -- objects that ran out of hp in the check
+ -- instead of calling del or kill in loop
+ local to_kill={}
+
+ -- TODO: more efficient?
+ for i=1,#object do
+  for j=i+1,#object do
+   local a=object[i]
+   local b=object[j]
+   if (collides(a) and collides(b) and (a.c_flag&b.c_hits!=0)) then
+    if (sphere_col(a,b)) then
+     a.hp-=b.dmg
+     b.hp-=a.dmg
+     if (a.hp<=0) add(to_kill,a)
+     if (b.hp<=0) add(to_kill,b)
+    end
+   end
+  end
+ end
+
+ for a in all(to_kill) do
+  a:kill()
+  del(object,a)
+ end
+end
+
+function collides(a)
+ -- note: 0 evaluates to true!
+ return (a.hp>0 and a.c_flag!=0)
+end
+
+
+-- for b in all(bullet) do
+--  for r in all(rock) do
+--   if (sphere_col(b,r)) then
+--    b.hp-=1
+--    r.hp-=1
+--   end
+--   if (b.hp <= 0) kill_bullet(b)
+--   if (r.hp <= 0) kill_rock(r)
+--  end
+-- end
 
 -->8
 -- wa
 
-bullets = {}
-
-function draw_player()
- spr(1, px, py)
-
+function draw_player(a)
  -- draw engine lights
- color(14)
- if (time()%0.4<0.2) then
-  line(px+1, py+9, px+1, py+9)
-  line(px+6, py+9, px+6, py+9)
-  color(7)
+ local yo=7
+ if (time()%0.4<0.2) yo=8
+ spr(17,a.x,a.y+yo)
+
+ draw_object(a)
+end
+
+function move_bullet(a)
+ move_object(a)
+ make_object(7,a.x,a.y+7)  -- bullet smoke
+
+ if (a.y<-6) del(object,a)
+end
+
+function move_rock(a)
+ move_object(a)
+ if (a.y>ymax) then
+  del(object,a)
  end
- line(px+1, py+8, px+1, py+8)
- line(px+6, py+8, px+6, py+8)
 end
 
-function draw_bullet(b)
- --pset(b.x, b.y, 11)
- line(b.x, b.y, b.x, b.y+b.h-1, 14)
- --line(b.x, b.y+4, b.x, b.y+7, 3)
+function kill_bullet(a)
+ make_object(2,a.x-3,a.y-3)
 end
 
-function move_bullet(b)
- b.y -= 4
-
- for y=5,7,2 do
-  make_smoke(b.x, b.y+y, 2, 4)
- end
-
- if (b.y < -4) del(bullet, b)
-end
-
-function draw_smoke(s)
- pset(s.x, s.y, s.c)
-end
-
-function draw_part(p)
- spr(p.f, p.x, p.y)
-end
-
-function move_smoke(s)
- s.x+=s.dx
- s.y+=s.dy
- s.t -= 1
- if (s.t <= 0) del(smoke, s)
-end
-
-function move_part(p)
- p.f += p.df
- p.t -= 1
- if (p.t <= 0) del(part, p)
-end
-
-function move_rock(r)
- r.y += r.dy
- if (r.y > ymax) del(rock, r)
-end
-
-function draw_rock(r)
- spr(14, r.x, r.y,2,2)
- -- map(0,0,r.x,r.y,2,2)
-end
-
-function kill_bullet(b)
- make_particle(b.x-3, b.y-3, 2, 0.34, 6)
- del(bullet, b)
-end
-
-function kill_rock(r)
- del(rock, r)
+function kill_rock(a)
+ p.gold+=1
 end
 
 -->8
--- guf
+-- object constructors
+
+function pass() end
+
+function make_object(f,x,y,dx,dy)
+ local a={
+  -- position, sprite, sprite size
+  f=f, x=x, y=y, fs=1,
+  -- speed
+  dx=dx or 0, dy=dy or 0,
+  -- collision offset, radius
+  xo=0, yo=0, r=0,
+  -- health, damage
+  hp=1, dmg=1,
+  -- collision flag, flags to hit
+  -- collision is checked if a.c_flag&b.c_hits
+  c_flag=0, c_hits=0,
+  -- functions
+  move=move_object,
+  draw=draw_object,
+  -- note: kill function doesn't call del()
+  kill=pass,
+  -- optional:
+  -- t: lifetime in frames
+  -- df: frame speed (TODO: better anim code)
+ }
+
+ -- apply specialization
+ for k,v in pairs(specs[f]) do
+  a[k]=v
+ end
+
+ add(object,a)
+ return a
+end
+
+function move_object(a)
+ a.x+=a.dx
+ a.y+=a.dy
+
+ if (a.t) then
+  a.t-=1
+  if (a.t<=0) del(object,a)
+ end
+
+ if (a.df) a.f+=a.df
+end
+
+function draw_object(a)
+ spr(a.f,a.x,a.y,a.fs,a.fs)
+end
 
 function make_bullet(x,y)
- local b = {
-  x=x, y=y, w=1, h=6,
-  hp=1, xo=0, yo=0, r=0.5
- }
- add(bullet, b)
+ make_object(6,x,y)
 end
 
 function make_rock()
  local x=rnd(128-16)
  local y=-20
  local dy=rnd(.5)+.5
- local r = {
-  x=x, y=y, dy=dy, w=16, h=16,
-  hp=4, xo=8, yo=8, r=8
- }
- add(rock, r)
+ make_object(14,x,y,0,dy)
 end
 
-function make_smoke(x,y,c,t,dx,dy)
- local s = {
-  -- coords, colour, time
-  x=x, y=y, c=c, t=t,
-  -- speed (optional)
-  dx=(dx or 0), dy=(dy or 0)
- }
- add(smoke, s)
-end
+-->8
+-- object specializations
 
-function make_particle(x,y,f,df,t)
- local p = {
-  -- coords, spr, dspr, time
-  x=x, y=y, f=f, df=df, t=t
- }
- add(part, p)
-end
+specs={
+ -- spaceship
+ [1]={
+  hp=10,
+  dmg=2,
+  gold=0,
+  charge=0,
+  cooldown=0,
+  -- c_flag=0b1,
+  -- c_hits=0b10,
+  move=pass,
+  draw=pass,  -- drawn at end
+ },
+ -- bullet star
+ [2]={
+  df=0.34,
+  t=6,
+ },
+ -- bullet
+ [6]={
+  dy=-4,
+  r=0.5,
+  c_flag=0x1,
+  c_hits=0x2,
+  move=move_bullet,
+  kill=kill_bullet,
+ },
+ -- bullet smoke
+ [7]={
+  t=4,
+ },
+ -- rock
+ [14]={
+  fs=2,
+  xo=8,
+  yo=8,
+  r=8,
+  hp=4,
+  c_flag=0x2,
+  c_hits=0x1,
+  move=move_rock,
+  kill=kill_rock,
+ },
+ [48]={
+  t=10,
+ },
+}
+
 -->8
 -- util functions
 
@@ -254,12 +320,12 @@ function clamp(n, lower, upper)
  return max(min(n, upper), lower)
 end
 __gfx__
-00000000000660000000000000020000000000000aa0000000000000000000000000000000000000000000000000000000000000000000000000000dddd00000
-0000000000066000000e00000020200006066666a00a0000000000000000000000000000000000000000000000000000000000000000000000000dddddddd000
-007007000066660000e7e000020002000060000000aa00000000000000000000000000000000000000000000000000000000000000000000000ddddddddddd00
-00077000006c76000e777e002000002006000000000a0000000000000000000000000000000000000000000000000000000000000000000000ddd5ddddddddd0
-00077000066cc66000e7e0000200020006000000aaaa000000000000000000000000000000000000000000000000000000000000000000000ddd5dddddddddd0
-0070070066666666000e00000020200006000000000000000000000000000000000000000000000000000000000000000000000000000000ddd55ddddddddddd
+00000000000660000000000000020000000000000aa00000e0000000200000000000000000000000000000000000000000000000000000000000000dddd00000
+0000000000066000000e00000020200006066666a00a0000e00000000000000000000000000000000000000000000000000000000000000000000dddddddd000
+007007000066660000e7e000020002000060000000aa0000e000000020000000000000000000000000000000000000000000000000000000000ddddddddddd00
+00077000006c76000e777e002000002006000000000a0000e00000000000000000000000000000000000000000000000000000000000000000ddd5ddddddddd0
+00077000066cc66000e7e0000200020006000000aaaa0000e0000000000000000000000000000000000000000000000000000000000000000ddd5dddddddddd0
+0070070066666666000e0000002020000600000000000000e000000000000000000000000000000000000000000000000000000000000000ddd55ddddddddddd
 0000000066566566000000000002000006000000000000000000000000000000000000000000000000000000000000000000000000000000ddd55ddddddddddd
 000000000d5665d0000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000dddd55dd5ddddddd
 00000000070000700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005dddd555dddddddd
