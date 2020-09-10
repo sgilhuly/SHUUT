@@ -22,8 +22,7 @@ function _update()
  if (is_debug and btnp(5)) paused=not paused
  if (paused and not btnp(4)) return
 
- local ps=2
- if (not btn(4)) ps*=2
+ local ps=tern(btn(4),2,4)
  if (btn(0)) p.x-=ps
  if (btn(1)) p.x+=ps
  if (btn(2)) p.y-=ps
@@ -35,6 +34,11 @@ function _update()
   a:move()
  end
 
+ if p.invuln>0 then
+  p.invuln-=1
+  if (p.invuln<=0) p.c_hits=0x6
+ end
+
  check_collisions()
 
  if (p.cooldown>0) then
@@ -44,7 +48,7 @@ function _update()
   make_bullet(p.x+7, p.y)
   p.cooldown=max_cooldown
  end
- if (not btn(4) and p.charge<10) p.charge+=.02
+ if (p.charge<10) p.charge+=tern(btn(4),.01,.02)
 
  -- add 1-2 to counter
  -- to approximate normal distribution
@@ -133,6 +137,11 @@ function check_collisions()
      b.hp-=a.dmg
      if (a.hp<=0) add(to_kill,a)
      if (b.hp<=0) add(to_kill,b)
+     -- player is first in list, will always be a
+     if a==p and b.dmg>0 then
+      p.invuln=20
+      p.c_hits=0x4
+     end
     end
    end
   end
@@ -152,6 +161,7 @@ end
 -- wa
 
 function draw_player(a)
+ if (a.invuln%3==2) return
  -- draw engine lights
  local yo=7
  if (time()%.4<.2) yo=8
@@ -181,8 +191,8 @@ end
 function kill_rock(a)
  -- spawn some coins
  if (a.is_gold) then
-  make_object(8,a.x,a.y+2,a.dx,a.dy)
-  make_object(8,a.x+8,a.y+6,a.dx,a.dy)
+  make_object(8,a.x,a.y+2,0,a.dy)
+  make_object(8,a.x+8,a.y+6,0,a.dy)
  end
  make_small_rock(a,-1,-1)
  make_small_rock(a,-1,1)
@@ -191,7 +201,7 @@ function kill_rock(a)
 end
 
 function kill_small_rock(a)
- if (a.is_gold) make_object(8,a.x,a.y,a.dx,a.dy)
+ if (a.is_gold) make_object(8,a.x,a.y,0,a.dy)
 end
 
 function kill_coin(a)
@@ -304,6 +314,7 @@ specs={
   hp=10,
   dmg=2,
   r=3,
+  invuln=0,
   gold=0,
   charge=0,
   cooldown=0,
@@ -395,6 +406,12 @@ end
 
 function clamp(n, lower, upper)
  return max(min(n, upper), lower)
+end
+
+-- if a then b else c
+function tern(a,b,c)
+ if (a) return b
+ return c
 end
 __gfx__
 00000000000660000000000000020000000000000aa00000e0000000200000000000000000000000000000000000000000000000000000000000000000000000
